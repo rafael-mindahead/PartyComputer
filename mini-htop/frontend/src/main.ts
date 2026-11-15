@@ -4,9 +4,11 @@ interface SystemMetrics {
   uptime_seconds: number;
   goroutines: number;
   num_cpu: number;
+  gomaxprocs: number;
   heap_alloc_mb: number;
   sys_mem_mb: number;
   num_gc: number;
+  last_pause_us: number;
   gogc: number;
   mem_limit_mb: number;
   go_version: string;
@@ -20,6 +22,7 @@ const heapHistory: number[] = [];
 const systemInfoEl = document.getElementById('system-info') as HTMLParagraphElement;
 const statusBadgeEl = document.getElementById('status-badge') as HTMLSpanElement;
 const stressBtn = document.getElementById('stress-btn') as HTMLButtonElement;
+const cpuBtn = document.getElementById('cpu-btn') as HTMLButtonElement;
 const forceGcBtn = document.getElementById('force-gc-btn') as HTMLButtonElement;
 const gogcButtons = document.querySelectorAll<HTMLButtonElement>('#gogc-buttons .pill-btn');
 
@@ -54,7 +57,7 @@ function renderSparkline(): void {
 }
 
 function updateUI(data: SystemMetrics): void {
-  statusBadgeEl.textContent = 'Online';
+  statusBadgeEl.textContent = 'Live (SSE)';
   statusBadgeEl.className = 'badge online';
   systemInfoEl.textContent = `${data.go_version} • ${data.os_arch}`;
 
@@ -64,12 +67,12 @@ function updateUI(data: SystemMetrics): void {
   heapBarEl.style.width = `${memPct}%`;
 
   goroutinesValueEl.textContent = String(data.goroutines);
-  cpuValueEl.textContent = `Núcleos lógicos: ${data.num_cpu}`;
+  cpuValueEl.textContent = `Núcleos: ${data.num_cpu} • GOMAXPROCS: ${data.gomaxprocs}`;
   const goroutinePct = Math.min((data.goroutines / 60) * 100, 100);
   goroutinesBarEl.style.width = `${goroutinePct}%`;
 
   uptimeValueEl.textContent = formatUptime(data.uptime_seconds);
-  gcValueEl.textContent = `Ciclos de GC: ${data.num_gc}`;
+  gcValueEl.textContent = `Ciclos de GC: ${data.num_gc} (Pausa: ${data.last_pause_us} µs)`;
   memLimitValueEl.textContent =
     data.mem_limit_mb < 0 ? 'GOMEMLIMIT: Ilimitado' : `GOMEMLIMIT: ${data.mem_limit_mb.toFixed(2)} MB`;
 
@@ -85,29 +88,44 @@ function updateUI(data: SystemMetrics): void {
   renderSparkline();
 }
 
-async function fetchMetrics(): Promise<void> {
-  try {
-    const response = await fetch(`${API_BASE}/metrics`);
-    if (!response.ok) throw new Error('Falha na resposta');
+function connectStream(): void {
+  const eventSource = new EventSource(`${API_BASE}/stream`);
 
-    const metrics: SystemMetrics = await response.json();
+  eventSource.onmessage = (event: MessageEvent<string>) => {
+    const metrics: SystemMetrics = JSON.parse(event.data);
     updateUI(metrics);
-  } catch {
-    statusBadgeEl.textContent = 'Offline';
+  };
+
+  eventSource.onerror = () => {
+    statusBadgeEl.textContent = 'Reconectando...';
     statusBadgeEl.className = 'badge offline';
-  }
+  };
 }
 
 stressBtn.addEventListener('click', async () => {
   stressBtn.disabled = true;
-  stressBtn.textContent = 'Alocando carga...';
+  stressBtn.textContent = 'Alocando memória...';
 
   try {
     await fetch(`${API_BASE}/stress`, { method: 'POST' });
   } finally {
     setTimeout(() => {
       stressBtn.disabled = false;
-      stressBtn.textContent = 'Simular Carga (3s)';
+      stressBtn.textContent = 'Simular Memória (3s)';
+    }, 3000);
+  }
+});
+
+cpuBtn.addEventListener('click', async () => {
+  cpuBtn.disabled = true;
+  cpuBtn.textContent = 'CPU a 100%...';
+
+  try {
+    await fetch(`${API_BASE}/stress/cpu`, { method: 'POST' });
+  } finally {
+    setTimeout(() => {
+      cpuBtn.disabled = false;
+      cpuBtn.textContent = 'Simular CPU (3s)';
     }, 3000);
   }
 });
@@ -116,7 +134,6 @@ forceGcBtn.addEventListener('click', async () => {
   forceGcBtn.disabled = true;
   try {
     await fetch(`${API_BASE}/gc/run`, { method: 'POST' });
-    await fetchMetrics();
   } finally {
     forceGcBtn.disabled = false;
   }
@@ -130,9 +147,7 @@ gogcButtons.forEach((btn) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ percent }),
     });
-    await fetchMetrics();
   });
 });
 
-fetchMetrics();
-setInterval(fetchMetrics, 1000);
+connectStream();
