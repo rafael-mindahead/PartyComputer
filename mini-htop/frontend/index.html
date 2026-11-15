@@ -1,13 +1,57 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>Mini htop — Go Runtime</title>
   </head>
   <body>
-    <div id="app"></div>
+    <main class="container">
+      <header class="header">
+        <div>
+          <h1>Go Runtime Monitor</h1>
+          <p id="system-info" class="subtitle">Conectando ao servidor...</p>
+        </div>
+        <div class="actions">
+          <span id="status-badge" class="badge offline">Offline</span>
+          <button id="stress-btn" type="button">Simular Carga (3s)</button>
+        </div>
+      </header>
+
+      <section class="grid">
+        <article class="card">
+          <span class="label">Memória Heap (Alocada)</span>
+          <strong id="heap-value" class="value">0 MB</strong>
+          <div class="bar-bg">
+            <div id="heap-bar" class="bar-fill cyan" style="width: 0%"></div>
+          </div>
+          <small id="sys-value" class="hint">Reservado pelo SO: 0 MB</small>
+        </article>
+
+        <article class="card">
+          <span class="label">Goroutines Ativas</span>
+          <strong id="goroutines-value" class="value">0</strong>
+          <div class="bar-bg">
+            <div id="goroutines-bar" class="bar-fill purple" style="width: 0%"></div>
+          </div>
+          <small id="cpu-value" class="hint">Núcleos lógicos: 0</small>
+        </article>
+
+        <article class="card">
+          <span class="label">Uptime & Garbage Collector</span>
+          <strong id="uptime-value" class="value">0s</strong>
+          <small id="gc-value" class="hint">Ciclos de GC: 0</small>
+        </article>
+      </section>
+
+      <section class="history-card">
+        <div class="history-header">
+          <span class="label">Histórico de Heap (últimas 30 leituras)</span>
+          <span id="peak-value" class="hint">Pico: 0 MB</span>
+        </div>
+        <div id="sparkline" class="sparkline"></div>
+      </section>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
