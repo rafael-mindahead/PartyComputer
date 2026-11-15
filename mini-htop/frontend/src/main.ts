@@ -1,60 +1,110 @@
-import './style.css'
-import heroImg from './assets/hero.png'
-import typescriptLogo from './assets/typescript.svg'
-import viteLogo from './assets/vite.svg'
-import { setupCounter } from './counter.ts'
+import './style.css';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${typescriptLogo}" class="framework" alt="TypeScript logo"/>
-    <img src="${viteLogo}" class="vite" alt="Vite logo" />
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.ts</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
+// Espelha exatamente a struct MetricsResponse do Go
+interface SystemMetrics {
+  uptime_seconds: number;
+  goroutines: number;
+  num_cpu: number;
+  heap_alloc_mb: number;
+  sys_mem_mb: number;
+  num_gc: number;
+  go_version: string;
+  os_arch: string;
+}
 
-<div class="ticks"></div>
+const API_BASE = 'http://localhost:8080/api';
+const MAX_HISTORY = 30;
+const heapHistory: number[] = [];
 
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src="${viteLogo}" alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://www.typescriptlang.org" target="_blank">
-          <img class="button-icon" src="${typescriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+// Referências tipadas do DOM
+const systemInfoEl = document.getElementById('system-info') as HTMLParagraphElement;
+const statusBadgeEl = document.getElementById('status-badge') as HTMLSpanElement;
+const stressBtn = document.getElementById('stress-btn') as HTMLButtonElement;
+const heapValueEl = document.getElementById('heap-value') as HTMLElement;
+const heapBarEl = document.getElementById('heap-bar') as HTMLDivElement;
+const sysValueEl = document.getElementById('sys-value') as HTMLElement;
+const goroutinesValueEl = document.getElementById('goroutines-value') as HTMLElement;
+const goroutinesBarEl = document.getElementById('goroutines-bar') as HTMLDivElement;
+const cpuValueEl = document.getElementById('cpu-value') as HTMLElement;
+const uptimeValueEl = document.getElementById('uptime-value') as HTMLElement;
+const gcValueEl = document.getElementById('gc-value') as HTMLElement;
+const peakValueEl = document.getElementById('peak-value') as HTMLSpanElement;
+const sparklineEl = document.getElementById('sparkline') as HTMLDivElement;
 
-<div class="ticks"></div>
-<section id="spacer"></section>
-`
+function formatUptime(totalSeconds: number): string {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+}
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+function renderSparkline(): void {
+  const peak = Math.max(...heapHistory, 1);
+  peakValueEl.textContent = `Pico: ${peak.toFixed(2)} MB`;
+
+  sparklineEl.innerHTML = heapHistory
+    .map((val) => {
+      const heightPct = Math.min((val / peak) * 100, 100);
+      return `<div class="spark-bar" style="height: ${heightPct}%" title="${val} MB"></div>`;
+    })
+    .join('');
+}
+
+function updateUI(data: SystemMetrics): void {
+  statusBadgeEl.textContent = 'Online';
+  statusBadgeEl.className = 'badge online';
+  systemInfoEl.textContent = `${data.go_version} • ${data.os_arch}`;
+
+  // Memória (escala visual relativa ao reservado pelo SO)
+  heapValueEl.textContent = `${data.heap_alloc_mb.toFixed(2)} MB`;
+  sysValueEl.textContent = `Reservado pelo SO: ${data.sys_mem_mb.toFixed(2)} MB`;
+  const memPct = Math.min((data.heap_alloc_mb / Math.max(data.sys_mem_mb, 1)) * 100, 100);
+  heapBarEl.style.width = `${memPct}%`;
+
+  // Goroutines (escala visual até 60 goroutines = 100%)
+  goroutinesValueEl.textContent = String(data.goroutines);
+  cpuValueEl.textContent = `Núcleos lógicos: ${data.num_cpu}`;
+  const goroutinePct = Math.min((data.goroutines / 60) * 100, 100);
+  goroutinesBarEl.style.width = `${goroutinePct}%`;
+
+  // Uptime & GC
+  uptimeValueEl.textContent = formatUptime(data.uptime_seconds);
+  gcValueEl.textContent = `Ciclos de GC: ${data.num_gc}`;
+
+  // Histórico
+  heapHistory.push(data.heap_alloc_mb);
+  if (heapHistory.length > MAX_HISTORY) {
+    heapHistory.shift();
+  }
+  renderSparkline();
+}
+
+async function fetchMetrics(): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE}/metrics`);
+    if (!response.ok) throw new Error('Falha na resposta');
+
+    const metrics: SystemMetrics = await response.json();
+    updateUI(metrics);
+  } catch {
+    statusBadgeEl.textContent = 'Offline';
+    statusBadgeEl.className = 'badge offline';
+  }
+}
+
+stressBtn.addEventListener('click', async () => {
+  stressBtn.disabled = true;
+  stressBtn.textContent = 'Alocando carga...';
+
+  try {
+    await fetch(`${API_BASE}/stress`, { method: 'POST' });
+  } finally {
+    setTimeout(() => {
+      stressBtn.disabled = false;
+      stressBtn.textContent = 'Simular Carga (3s)';
+    }, 3000);
+  }
+});
+
+// Primeira leitura imediata + polling a cada 1 segundo
+fetchMetrics();
+setInterval(fetchMetrics, 1000);
