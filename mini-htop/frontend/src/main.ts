@@ -6,7 +6,8 @@ interface SystemMetrics {
   num_cpu: number;
   gomaxprocs: number;
   heap_alloc_mb: number;
-  sys_mem_mb: number;
+  os_active_mb: number;
+  heap_released_mb: number;
   num_gc: number;
   last_pause_us: number;
   gogc: number;
@@ -18,6 +19,7 @@ interface SystemMetrics {
 const API_BASE = 'http://localhost:8080/api';
 const MAX_HISTORY = 30;
 const heapHistory: number[] = [];
+let sessionPeakMB = 0;
 
 const systemInfoEl = document.getElementById('system-info') as HTMLParagraphElement;
 const statusBadgeEl = document.getElementById('status-badge') as HTMLSpanElement;
@@ -45,12 +47,13 @@ function formatUptime(totalSeconds: number): string {
 }
 
 function renderSparkline(): void {
-  const peak = Math.max(...heapHistory, 1);
-  peakValueEl.textContent = `Pico: ${peak.toFixed(2)} MB`;
+  // Usa o pico acumulado da sessão (com piso de 10 MB) para evitar distorção visual
+  const scaleCeiling = Math.max(sessionPeakMB, 10);
+  peakValueEl.textContent = `Pico da sessão: ${sessionPeakMB.toFixed(2)} MB`;
 
   sparklineEl.innerHTML = heapHistory
     .map((val) => {
-      const heightPct = Math.min((val / peak) * 100, 100);
+      const heightPct = Math.min((val / scaleCeiling) * 100, 100);
       return `<div class="spark-bar" style="height: ${heightPct}%" title="${val} MB"></div>`;
     })
     .join('');
@@ -61,9 +64,16 @@ function updateUI(data: SystemMetrics): void {
   statusBadgeEl.className = 'badge online';
   systemInfoEl.textContent = `${data.go_version} • ${data.os_arch}`;
 
+  if (data.heap_alloc_mb > sessionPeakMB) {
+    sessionPeakMB = data.heap_alloc_mb;
+  }
+
   heapValueEl.textContent = `${data.heap_alloc_mb.toFixed(2)} MB`;
-  sysValueEl.textContent = `Reservado pelo SO: ${data.sys_mem_mb.toFixed(2)} MB`;
-  const memPct = Math.min((data.heap_alloc_mb / Math.max(data.sys_mem_mb, 1)) * 100, 100);
+  sysValueEl.textContent = `Retido do SO: ${data.os_active_mb.toFixed(2)} MB • Devolvido: ${data.heap_released_mb.toFixed(2)} MB`;
+
+  // Escala contra GOMEMLIMIT (se definido) ou contra o teto visual da sessão
+  const barCeiling = data.mem_limit_mb > 0 ? data.mem_limit_mb : Math.max(sessionPeakMB, 10);
+  const memPct = Math.min((data.heap_alloc_mb / barCeiling) * 100, 100);
   heapBarEl.style.width = `${memPct}%`;
 
   goroutinesValueEl.textContent = String(data.goroutines);

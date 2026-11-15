@@ -12,18 +12,20 @@ import (
 )
 
 type MetricsResponse struct {
-	UptimeSeconds float64 `json:"uptime_seconds"`
-	Goroutines    int     `json:"goroutines"`
-	NumCPU        int     `json:"num_cpu"`
-	GoMaxProcs    int     `json:"gomaxprocs"`
-	HeapAllocMB   float64 `json:"heap_alloc_mb"`
-	SysMemMB      float64 `json:"sys_mem_mb"`
-	NumGC         uint32  `json:"num_gc"`
-	LastPauseUs   float64 `json:"last_pause_us"`
-	GOGC          int     `json:"gogc"`
-	MemLimitMB    float64 `json:"mem_limit_mb"`
-	GoVersion     string  `json:"go_version"`
-	OSArch        string  `json:"os_arch"`
+	UptimeSeconds  float64 `json:"uptime_seconds"`
+	Goroutines     int     `json:"goroutines"`
+	NumCPU         int     `json:"num_cpu"`
+	GoMaxProcs     int     `json:"gomaxprocs"`
+	HeapAllocMB    float64 `json:"heap_alloc_mb"`
+	OSactiveMB     float64 `json:"os_active_mb"`
+	HeapReleasedMB float64 `json:"heap_released_mb"`
+	SysMemMB       float64 `json:"sys_mem_mb"`
+	NumGC          uint32  `json:"num_gc"`
+	LastPauseUs    float64 `json:"last_pause_us"`
+	GOGC           int     `json:"gogc"`
+	MemLimitMB     float64 `json:"mem_limit_mb"`
+	GoVersion      string  `json:"go_version"`
+	OSArch         string  `json:"os_arch"`
 }
 
 type GCPercentRequest struct {
@@ -57,20 +59,26 @@ func collectMetrics() MetricsResponse {
 		lastPauseNs := memStats.PauseNs[(memStats.NumGC+255)%256]
 		lastPauseUs = math.Round((float64(lastPauseNs)/1000.0)*100) / 100
 	}
+	var osActiveBytes uint64
+	if memStats.Sys >= memStats.HeapReleased {
+		osActiveBytes = memStats.Sys - memStats.HeapReleased
+	}
 
 	return MetricsResponse{
-		UptimeSeconds: math.Round(time.Since(startTime).Seconds()),
-		Goroutines:    runtime.NumGoroutine(),
-		NumCPU:        runtime.NumCPU(),
-		GoMaxProcs:    runtime.GOMAXPROCS(0),
-		HeapAllocMB:   bytesToMB(memStats.HeapAlloc),
-		SysMemMB:      bytesToMB(memStats.Sys),
-		NumGC:         memStats.NumGC,
-		LastPauseUs:   lastPauseUs,
-		GOGC:          int(currentGOGC.Load()),
-		MemLimitMB:    getMemLimitMB(),
-		GoVersion:     runtime.Version(),
-		OSArch:        fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
+		UptimeSeconds:  math.Round(time.Since(startTime).Seconds()),
+		Goroutines:     runtime.NumGoroutine(),
+		NumCPU:         runtime.NumCPU(),
+		GoMaxProcs:     runtime.GOMAXPROCS(0),
+		HeapAllocMB:    bytesToMB(memStats.HeapAlloc),
+		OSactiveMB:     bytesToMB(osActiveBytes),
+		HeapReleasedMB: bytesToMB(memStats.HeapReleased),
+		SysMemMB:       bytesToMB(memStats.Sys),
+		NumGC:          memStats.NumGC,
+		LastPauseUs:    lastPauseUs,
+		GOGC:           int(currentGOGC.Load()),
+		MemLimitMB:     getMemLimitMB(),
+		GoVersion:      runtime.Version(),
+		OSArch:         fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
 	}
 }
 

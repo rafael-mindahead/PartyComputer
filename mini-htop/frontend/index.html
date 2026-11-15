@@ -14,7 +14,8 @@
         </div>
         <div class="actions">
           <span id="status-badge" class="badge offline">Offline</span>
-          <button id="stress-btn" type="button">Simular Carga (3s)</button>
+          <button id="cpu-btn" type="button" class="btn-secondary">Simular CPU (3s)</button>
+          <button id="stress-btn" type="button">Simular Memória (3s)</button>
         </div>
       </header>
 
@@ -25,7 +26,7 @@
           <div class="bar-bg">
             <div id="heap-bar" class="bar-fill cyan" style="width: 0%"></div>
           </div>
-          <small id="sys-value" class="hint">Reservado pelo SO: 0 MB</small>
+          <small id="sys-value" class="hint">Retido do SO: 0 MB • Devolvido: 0 MB</small>
         </article>
 
         <article class="card">
@@ -34,13 +35,13 @@
           <div class="bar-bg">
             <div id="goroutines-bar" class="bar-fill purple" style="width: 0%"></div>
           </div>
-          <small id="cpu-value" class="hint">Núcleos lógicos: 0</small>
+          <small id="cpu-value" class="hint">Núcleos: 0 • GOMAXPROCS: 0</small>
         </article>
 
         <article class="card">
           <span class="label">Uptime & Garbage Collector</span>
           <strong id="uptime-value" class="value">0s</strong>
-          <small id="gc-value" class="hint">Ciclos de GC: 0</small>
+          <small id="gc-value" class="hint">Ciclos de GC: 0 (Pausa: 0 µs)</small>
           <small id="memlimit-value" class="hint">GOMEMLIMIT: Ilimitado</small>
         </article>
       </section>
@@ -63,7 +64,7 @@
       <section class="history-card">
         <div class="history-header">
           <span class="label">Histórico de Heap (últimas 30 leituras)</span>
-          <span id="peak-value" class="hint">Pico: 0 MB</span>
+          <span id="peak-value" class="hint">Pico da sessão: 0 MB</span>
         </div>
         <div id="sparkline" class="sparkline"></div>
       </section>
