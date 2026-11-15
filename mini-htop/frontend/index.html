@@ -41,7 +41,23 @@
           <span class="label">Uptime & Garbage Collector</span>
           <strong id="uptime-value" class="value">0s</strong>
           <small id="gc-value" class="hint">Ciclos de GC: 0</small>
+          <small id="memlimit-value" class="hint">GOMEMLIMIT: Ilimitado</small>
         </article>
+      </section>
+
+      <section class="controls-card">
+        <div class="control-group">
+          <span class="label">Gatilho GOGC:</span>
+          <div class="pill-group" id="gogc-buttons">
+            <button type="button" class="pill-btn" data-gogc="50">50%</button>
+            <button type="button" class="pill-btn" data-gogc="100">100%</button>
+            <button type="button" class="pill-btn" data-gogc="200">200%</button>
+            <button type="button" class="pill-btn" data-gogc="-1">Off</button>
+          </div>
+        </div>
+        <button id="force-gc-btn" type="button" class="btn-secondary">
+          Forçar GC Agora
+        </button>
       </section>
 
       <section class="history-card">
